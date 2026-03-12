@@ -89,7 +89,7 @@ app.post('/api/webhook/pedido', async (req, res) => {
   }
 
   try {
-    const d = req.body;
+    const d = req.body; console.log('WEBHOOK:', JSON.stringify(d).substring(0,1000));
 
     // Converte "R$ 343,55" ou número para float
     const parseVal = v => {
