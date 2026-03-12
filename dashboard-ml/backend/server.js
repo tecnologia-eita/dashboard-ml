@@ -89,30 +89,22 @@ app.post('/api/webhook/pedido', async (req, res) => {
   }
 
   try {
-    const d = req.body; console.log('WEBHOOK:', JSON.stringify(d).substring(0,1000));
+    const d = req.body;
 
-    // Converte "R$ 343,55" ou número para float
-    const parseVal = v => {
+    // Converte "R$ 1.234,56" ou número para float
+    const pv = v => {
       if (typeof v === 'number') return v;
       if (!v) return 0;
       return parseFloat(String(v).replace('R$ ', '').replace(/\./g, '').replace(',', '.')) || 0;
     };
 
-    const itens = d.itens ?? [d];
+    const itens = Array.isArray(d.itens) && d.itens.length > 0 ? d.itens : [d];
+    const totalBruto          = pv(d.total_bruto_fmt);
+    const totalLiquido        = pv(d.total_liquido_fmt);
+    const totalImposto        = pv(d.total_imposto_fmt);
+    const totalImpulsionamento = pv(d.total_impulsionamento_fmt);
 
     for (const item of itens) {
-      const valor_bruto = parseVal(item.valor_bruto ?? item.valor_bruto_fmt);
-      const comissao    = parseVal(item.comissao ?? item.comissao_fmt);
-      const frete       = parseVal(item.frete_aplicado_no_pedido ?? item.frete_fmt);
-      const liquido     = parseVal(item.liquido_estimado ?? item.liquido_fmt);
-      const custo       = parseVal(item.preco_custo ?? item.custo_fmt);
-      const lucro       = parseVal(item.lucro ?? item.lucro_fmt);
-
-      const totalLiquido        = parseVal(d.total_lucro ?? liquido);
-      const totalBruto          = parseVal(d.total_bruto ?? valor_bruto);
-      const totalImposto        = totalLiquido * 0.14;
-      const totalImpulsionamento = totalBruto  * 0.10;
-
       await pool.query(`
         INSERT INTO pedidos (
           pack_id, order_id, item_title, item_sku, listing_type,
@@ -122,25 +114,25 @@ app.post('/api/webhook/pedido', async (req, res) => {
           is_kit, total_imposto, total_impulsionamento
         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
       `, [
-        d.pack_id ?? item.order_id,
+        d.pack_id,
         item.order_id,
-        item.item_title ?? item.title,
-        item.item_sku ?? item.sku,
-        item.listing_type ?? d.listing_type,
-        valor_bruto,
-        comissao,
-        item.comissao_pct,
-        parseVal(item.frete_custo_real),
-        frete,
-        parseVal(item.desconto_comprador),
-        liquido,
-        custo,
-        lucro,
+        item.title,
+        item.sku,
+        d.listing_type,
+        pv(item.valor_bruto_fmt),
+        pv(item.comissao_fmt),
+        null,
+        0,
+        pv(item.frete_fmt),
+        0,
+        pv(item.liquido_fmt),
+        pv(item.custo_fmt),
+        pv(item.lucro_fmt),
         item.margem_pct_liquido,
         item.margem_pct_bruto,
-        item.is_kit ?? false,
-        totalImposto / (itens.length || 1),
-        totalImpulsionamento / (itens.length || 1)
+        false,
+        totalImposto / itens.length,
+        totalImpulsionamento / itens.length
       ]);
     }
 
@@ -156,7 +148,7 @@ app.get('/api/resumo', authMiddleware, async (req, res) => {
   const where = inicio && fim ? `WHERE created_at BETWEEN $1 AND $2` : '';
   const params = inicio && fim ? [inicio, fim] : [];
 
-  const [totais, porDia, porProduto, porTipo, recentes] = await Promise.all([
+  const [totais, porDia, porProduto, porTipo] = await Promise.all([
     pool.query(`
       SELECT
         COUNT(*) AS total_pedidos,
@@ -201,11 +193,6 @@ app.get('/api/resumo', authMiddleware, async (req, res) => {
         COALESCE(SUM(lucro),0) AS lucro
       FROM pedidos ${where}
       GROUP BY listing_type
-    `, params),
-
-    pool.query(`
-      SELECT * FROM pedidos ${where}
-      ORDER BY created_at DESC LIMIT 50
     `, params)
   ]);
 
@@ -214,7 +201,6 @@ app.get('/api/resumo', authMiddleware, async (req, res) => {
     porDia: porDia.rows.reverse(),
     porProduto: porProduto.rows,
     porTipo: porTipo.rows,
-    recentes: recentes.rows
   });
 });
 
