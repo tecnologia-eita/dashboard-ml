@@ -16,7 +16,6 @@ const pool = new Pool({
 
 const JWT_SECRET = process.env.JWT_SECRET || 'troque-essa-chave-secreta';
 
-// ─── INIT DATABASE ───────────────────────────────────────────────────────────
 async function initDB() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -51,7 +50,6 @@ async function initDB() {
     );
   `);
 
-  // Cria usuário admin padrão se não existir
   const admin = await pool.query("SELECT id FROM users WHERE username = 'admin'");
   if (admin.rows.length === 0) {
     const hash = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 10);
@@ -62,7 +60,6 @@ async function initDB() {
   console.log('✅ Banco de dados inicializado');
 }
 
-// ─── AUTH MIDDLEWARE ──────────────────────────────────────────────────────────
 function authMiddleware(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Token não fornecido' });
@@ -74,7 +71,6 @@ function authMiddleware(req, res, next) {
   }
 }
 
-// ─── ROTAS AUTH ───────────────────────────────────────────────────────────────
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
@@ -86,8 +82,6 @@ app.post('/api/login', async (req, res) => {
   res.json({ token, username: user.username });
 });
 
-// ─── WEBHOOK N8N ──────────────────────────────────────────────────────────────
-// Rota chamada pelo n8n ao final do fluxo
 app.post('/api/webhook/pedido', async (req, res) => {
   const secret = req.headers['x-webhook-secret'];
   if (secret !== process.env.WEBHOOK_SECRET) {
@@ -97,14 +91,27 @@ app.post('/api/webhook/pedido', async (req, res) => {
   try {
     const d = req.body;
 
-    // Suporta tanto objeto único quanto array de itens (pack com múltiplos pedidos)
+    // Converte "R$ 343,55" ou número para float
+    const parseVal = v => {
+      if (typeof v === 'number') return v;
+      if (!v) return 0;
+      return parseFloat(String(v).replace('R$ ', '').replace(/\./g, '').replace(',', '.')) || 0;
+    };
+
     const itens = d.itens ?? [d];
 
     for (const item of itens) {
-      const totalLiquido = parseFloat(d.total_liquido ?? item.liquido_estimado ?? 0);
-      const totalBruto   = parseFloat(d.total_bruto   ?? item.valor_bruto ?? 0);
-      const totalImposto         = totalLiquido * 0.14;
-      const totalImpulsionamento = totalBruto   * 0.10;
+      const valor_bruto = parseVal(item.valor_bruto ?? item.valor_bruto_fmt);
+      const comissao    = parseVal(item.comissao ?? item.comissao_fmt);
+      const frete       = parseVal(item.frete_aplicado_no_pedido ?? item.frete_fmt);
+      const liquido     = parseVal(item.liquido_estimado ?? item.liquido_fmt);
+      const custo       = parseVal(item.preco_custo ?? item.custo_fmt);
+      const lucro       = parseVal(item.lucro ?? item.lucro_fmt);
+
+      const totalLiquido        = parseVal(d.total_lucro ?? liquido);
+      const totalBruto          = parseVal(d.total_bruto ?? valor_bruto);
+      const totalImposto        = totalLiquido * 0.14;
+      const totalImpulsionamento = totalBruto  * 0.10;
 
       await pool.query(`
         INSERT INTO pedidos (
@@ -120,15 +127,15 @@ app.post('/api/webhook/pedido', async (req, res) => {
         item.item_title ?? item.title,
         item.item_sku ?? item.sku,
         item.listing_type ?? d.listing_type,
-        item.valor_bruto,
-        item.comissao,
+        valor_bruto,
+        comissao,
         item.comissao_pct,
-        item.frete_custo_real,
-        item.frete_aplicado_no_pedido,
-        item.desconto_comprador,
-        item.liquido_estimado,
-        item.preco_custo,
-        item.lucro,
+        parseVal(item.frete_custo_real),
+        frete,
+        parseVal(item.desconto_comprador),
+        liquido,
+        custo,
+        lucro,
         item.margem_pct_liquido,
         item.margem_pct_bruto,
         item.is_kit ?? false,
@@ -144,12 +151,9 @@ app.post('/api/webhook/pedido', async (req, res) => {
   }
 });
 
-// ─── ROTAS DASHBOARD ─────────────────────────────────────────────────────────
 app.get('/api/resumo', authMiddleware, async (req, res) => {
   const { inicio, fim } = req.query;
-  const where = inicio && fim
-    ? `WHERE created_at BETWEEN $1 AND $2`
-    : '';
+  const where = inicio && fim ? `WHERE created_at BETWEEN $1 AND $2` : '';
   const params = inicio && fim ? [inicio, fim] : [];
 
   const [totais, porDia, porProduto, porTipo, recentes] = await Promise.all([
@@ -235,7 +239,6 @@ app.get('/api/pedidos', authMiddleware, async (req, res) => {
   res.json({ pedidos: rows.rows, total: parseInt(count.rows[0].count), pagina: parseInt(pagina) });
 });
 
-// ─── START ────────────────────────────────────────────────────────────────────
 initDB().then(() => {
   const PORT = process.env.PORT || 3001;
   app.listen(PORT, () => console.log(`🚀 API rodando na porta ${PORT}`));
