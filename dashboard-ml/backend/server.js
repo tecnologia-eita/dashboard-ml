@@ -16,6 +16,12 @@ const pool = new Pool({
 
 const JWT_SECRET = process.env.JWT_SECRET || 'troque-essa-chave-secreta';
 
+// Colunas permitidas para ordenação (prevenção de SQL injection)
+const SORT_COLUMNS = new Set([
+  'created_at', 'order_id', 'pack_id', 'item_sku', 'item_title',
+  'valor_bruto', 'comissao', 'preco_custo', 'lucro', 'marketplace'
+]);
+
 async function initDB() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -48,6 +54,11 @@ async function initDB() {
       total_impulsionamento NUMERIC(10,2),
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+  `);
+
+  // Adiciona coluna marketplace se não existir (migração segura)
+  await pool.query(`
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS marketplace TEXT DEFAULT 'mercadolivre';
   `);
 
   const admin = await pool.query("SELECT id FROM users WHERE username = 'admin'");
@@ -99,10 +110,9 @@ app.post('/api/webhook/pedido', async (req, res) => {
     };
 
     const itens = Array.isArray(d.itens) && d.itens.length > 0 ? d.itens : [d];
-    const totalBruto          = pv(d.total_bruto_fmt);
-    const totalLiquido        = pv(d.total_liquido_fmt);
-    const totalImposto        = pv(d.total_imposto_fmt);
+    const totalImposto         = pv(d.total_imposto_fmt);
     const totalImpulsionamento = pv(d.total_impulsionamento_fmt);
+    const marketplace          = d.marketplace || 'mercadolivre';
 
     for (const item of itens) {
       await pool.query(`
@@ -111,8 +121,8 @@ app.post('/api/webhook/pedido', async (req, res) => {
           valor_bruto, comissao, comissao_pct, frete_custo_real,
           frete_aplicado_no_pedido, desconto_comprador, liquido_estimado,
           preco_custo, lucro, margem_pct_liquido, margem_pct_bruto,
-          is_kit, total_imposto, total_impulsionamento
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+          is_kit, total_imposto, total_impulsionamento, marketplace
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
       `, [
         d.pack_id,
         item.order_id,
@@ -132,7 +142,8 @@ app.post('/api/webhook/pedido', async (req, res) => {
         item.margem_pct_bruto,
         false,
         totalImposto / itens.length,
-        totalImpulsionamento / itens.length
+        totalImpulsionamento / itens.length,
+        marketplace
       ]);
     }
 
@@ -205,20 +216,38 @@ app.get('/api/resumo', authMiddleware, async (req, res) => {
 });
 
 app.get('/api/pedidos', authMiddleware, async (req, res) => {
-  const { inicio, fim, sku, tipo, pagina = 1 } = req.query;
+  const { inicio, fim, sku, order_id, marketplace, pagina = 1, sort, dir } = req.query;
   const conditions = [];
   const params = [];
 
-  if (inicio && fim) { params.push(inicio, fim); conditions.push(`DATE(created_at) BETWEEN $${params.length-1}::date AND $${params.length}::date`); }
-  if (sku) { params.push(`%${sku}%`); conditions.push(`item_sku ILIKE $${params.length}`); }
-  if (tipo) { params.push(tipo); conditions.push(`listing_type = $${params.length}`); }
+  if (inicio && fim) {
+    params.push(inicio, fim);
+    conditions.push(`DATE(created_at) BETWEEN $${params.length-1}::date AND $${params.length}::date`);
+  }
+  if (order_id) {
+    params.push(`%${order_id}%`);
+    conditions.push(`order_id::TEXT ILIKE $${params.length}`);
+  }
+  if (sku) {
+    params.push(`%${sku}%`);
+    conditions.push(`item_sku ILIKE $${params.length}`);
+  }
+  if (marketplace) {
+    params.push(marketplace);
+    conditions.push(`marketplace = $${params.length}`);
+  }
 
-  const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
-  const offset = (parseInt(pagina) - 1) * 50;
+  const where  = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+  const sortCol = SORT_COLUMNS.has(sort) ? sort : 'created_at';
+  const sortDir = dir === 'asc' ? 'ASC' : 'DESC';
+  const offset  = (parseInt(pagina) - 1) * 50;
   params.push(offset);
 
   const [rows, count] = await Promise.all([
-    pool.query(`SELECT * FROM pedidos ${where} ORDER BY created_at DESC LIMIT 50 OFFSET $${params.length}`, params),
+    pool.query(
+      `SELECT * FROM pedidos ${where} ORDER BY ${sortCol} ${sortDir} LIMIT 50 OFFSET $${params.length}`,
+      params
+    ),
     pool.query(`SELECT COUNT(*) FROM pedidos ${where}`, params.slice(0, -1))
   ]);
 

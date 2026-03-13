@@ -151,9 +151,12 @@ export default function Dashboard({ onLogout }) {
   const [tab, setTab]               = useState('resumo');
   const [inicio, setInicio]         = useState('');
   const [fim, setFim]               = useState('');
-  const [skuFiltro, setSkuFiltro]   = useState('');
-  const [tipoFiltro, setTipoFiltro] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
+  const [skuFiltro, setSkuFiltro]         = useState('');
+  const [orderIdFiltro, setOrderIdFiltro] = useState('');
+  const [marketplace, setMarketplace]     = useState('');
+  const [sortCol, setSortCol]             = useState('created_at');
+  const [sortDir, setSortDir]             = useState('desc');
+  const [refreshing, setRefreshing]       = useState(false);
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -165,16 +168,24 @@ export default function Dashboard({ onLogout }) {
     setLoading(false);
   }, [inicio, fim]);
 
-  const loadPedidos = useCallback(async (p = 1) => {
-    const params = new URLSearchParams({ pagina: p });
-    if (inicio && fim)  { params.set('inicio', inicio); params.set('fim', fim); }
-    if (skuFiltro)      params.set('sku', skuFiltro);
-    if (tipoFiltro)     params.set('tipo', tipoFiltro);
+  const loadPedidos = useCallback(async (p = 1, col = sortCol, dir = sortDir) => {
+    const params = new URLSearchParams({ pagina: p, sort: col, dir });
+    if (inicio && fim)    { params.set('inicio', inicio); params.set('fim', fim); }
+    if (skuFiltro)        params.set('sku', skuFiltro);
+    if (orderIdFiltro)    params.set('order_id', orderIdFiltro);
+    if (marketplace)      params.set('marketplace', marketplace);
     const d = await api(`/api/pedidos?${params}`);
     setPedidos(d.pedidos || []);
     setTotal(d.total || 0);
     setPagina(p);
-  }, [inicio, fim, skuFiltro, tipoFiltro]);
+  }, [inicio, fim, skuFiltro, orderIdFiltro, marketplace, sortCol, sortDir]);
+
+  const handleSort = (col) => {
+    const newDir = sortCol === col && sortDir === 'desc' ? 'asc' : 'desc';
+    setSortCol(col);
+    setSortDir(newDir);
+    loadPedidos(1, col, newDir);
+  };
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (tab === 'pedidos') loadPedidos(1); }, [tab, loadPedidos]);
@@ -477,25 +488,38 @@ export default function Dashboard({ onLogout }) {
         {/* ── PEDIDOS TAB ── */}
         {tab === 'pedidos' && (
           <div className="fade-in">
+            {/* Linha 1: buscas por texto */}
             <div style={s.filterRow} className="fade-in-up">
+              <input
+                style={{ ...s.filterInput, flex: 1 }}
+                placeholder="ID do pedido..."
+                value={orderIdFiltro}
+                onChange={e => setOrderIdFiltro(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && loadPedidos(1)}
+              />
               <input
                 style={{ ...s.filterInput, flex: 1 }}
                 placeholder="Buscar por SKU..."
                 value={skuFiltro}
                 onChange={e => setSkuFiltro(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && loadPedidos(1)}
               />
               <select
                 style={s.filterSelect}
-                value={tipoFiltro}
-                onChange={e => setTipoFiltro(e.target.value)}
+                value={marketplace}
+                onChange={e => setMarketplace(e.target.value)}
               >
-                <option value="">Todos os tipos</option>
-                <option value="gold_pro">Gold Pro</option>
-                <option value="gold_special">Gold Special</option>
-                <option value="gold">Gold</option>
-                <option value="free">Free</option>
+                <option value="">Todos os marketplaces</option>
+                <option value="mercadolivre">Mercado Livre</option>
+                <option value="shopee">Shopee</option>
+                <option value="wbuy">Wbuy</option>
+                <option value="amazon">Amazon</option>
+                <option value="magalu">Magalu</option>
               </select>
               <button style={s.applyBtn} onClick={() => loadPedidos(1)}>🔍 Buscar</button>
+              {(orderIdFiltro || skuFiltro || marketplace) && (
+                <button style={s.clearBtn} onClick={() => { setOrderIdFiltro(''); setSkuFiltro(''); setMarketplace(''); }}>✕</button>
+              )}
               <span style={{ color: C.textMuted, fontSize: 12, whiteSpace: 'nowrap', fontWeight: 600 }}>
                 {fmtN(total)} resultados
               </span>
@@ -506,8 +530,31 @@ export default function Dashboard({ onLogout }) {
                 <table style={s.table}>
                   <thead>
                     <tr>
-                      {['Pack', 'SKU', 'Produto', 'Bruto', 'Comissão', 'Custo', 'Lucro', 'Margem', 'Data'].map(h => (
-                        <th key={h} style={s.th}>{h}</th>
+                      {[
+                        { label: 'Pack',     col: 'pack_id' },
+                        { label: 'ID',       col: 'order_id' },
+                        { label: 'SKU',      col: 'item_sku' },
+                        { label: 'Produto',  col: 'item_title' },
+                        { label: 'Mercado',  col: 'marketplace' },
+                        { label: 'Bruto',    col: 'valor_bruto' },
+                        { label: 'Comissão', col: 'comissao' },
+                        { label: 'Custo',    col: 'preco_custo' },
+                        { label: 'Lucro',    col: 'lucro' },
+                        { label: 'Margem',   col: null },
+                        { label: 'Data',     col: 'created_at' },
+                      ].map(({ label, col }) => (
+                        <th
+                          key={label}
+                          style={{ ...s.th, cursor: col ? 'pointer' : 'default', userSelect: 'none', whiteSpace: 'nowrap' }}
+                          onClick={() => col && handleSort(col)}
+                        >
+                          {label}
+                          {col && (
+                            <span style={{ marginLeft: 4, opacity: sortCol === col ? 1 : 0.3, fontSize: 10 }}>
+                              {sortCol === col ? (sortDir === 'desc' ? '▼' : '▲') : '↕'}
+                            </span>
+                          )}
+                        </th>
                       ))}
                     </tr>
                   </thead>
@@ -524,13 +571,25 @@ export default function Dashboard({ onLogout }) {
                           <td style={{ ...s.td, fontFamily: "'DM Mono', monospace", color: C.textMuted, fontSize: 11 }}>
                             {p.pack_id || '—'}
                           </td>
+                          <td style={{ ...s.td, fontFamily: "'DM Mono', monospace", color: C.textMuted, fontSize: 11 }}>
+                            {p.order_id || '—'}
+                          </td>
                           <td style={{ ...s.td, fontFamily: "'DM Mono', monospace", color: C.orange, fontSize: 11 }}>
                             {p.item_sku || '—'}
                           </td>
-                          <td style={{ ...s.td, maxWidth: 200 }}>
+                          <td style={{ ...s.td, maxWidth: 180 }}>
                             <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>
-                              {p.item_title}
+                              {p.item_title || '—'}
                             </div>
+                          </td>
+                          <td style={{ ...s.td, fontSize: 11 }}>
+                            <span style={{
+                              background: `${C.orange}14`, color: C.orangeHi,
+                              borderRadius: 6, padding: '2px 7px', fontSize: 10, fontWeight: 700,
+                              whiteSpace: 'nowrap',
+                            }}>
+                              {p.marketplace || 'ML'}
+                            </span>
                           </td>
                           <td style={{ ...s.td, textAlign: 'right', fontFamily: "'DM Mono', monospace", fontSize: 12 }}>{fmt(p.valor_bruto)}</td>
                           <td style={{ ...s.td, textAlign: 'right', fontFamily: "'DM Mono', monospace", fontSize: 12, color: C.red }}>{fmt(p.comissao)}</td>
@@ -550,7 +609,7 @@ export default function Dashboard({ onLogout }) {
                       );
                     })}
                     {pedidos.length === 0 && (
-                      <tr><td colSpan={9} style={{ ...s.td, textAlign: 'center', color: C.textMuted, padding: 40 }}>Nenhum pedido encontrado</td></tr>
+                      <tr><td colSpan={11} style={{ ...s.td, textAlign: 'center', color: C.textMuted, padding: 40 }}>Nenhum pedido encontrado</td></tr>
                     )}
                   </tbody>
                 </table>
