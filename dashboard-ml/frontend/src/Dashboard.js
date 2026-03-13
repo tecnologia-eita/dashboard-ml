@@ -209,7 +209,6 @@ export default function Dashboard({ onLogout }) {
   const margem = Number(t.margem_media || 0);
   const lucroTotal = Number(t.total_lucro || 0);
 
-  const TIPO_COLORS = { gold: C.gold, free: C.orange, premium: C.purple };
   const porTipo = (data?.porTipo || []).map((x, i) => ({
     ...x,
     fill: [C.orange, C.gold, C.blue, C.purple, C.green][i % 5],

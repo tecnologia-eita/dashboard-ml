@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.env
+.venv/
+venv/
+env/
+*.log
+
+# Node
+dashboard-ml/frontend/node_modules/
+dashboard-ml/frontend/build/
+dashboard-ml/frontend/.env.local
+dashboard-ml/frontend/.env.production
+dashboard-ml/backend/node_modules/
+dashboard-ml/backend/.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

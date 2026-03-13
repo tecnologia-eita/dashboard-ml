@@ -84,7 +84,7 @@ app.post('/api/login', async (req, res) => {
 
 app.post('/api/webhook/pedido', async (req, res) => {
   const secret = req.headers['x-webhook-secret'];
-  if (secret !== process.env.WEBHOOK_SECRET) {
+  if (!process.env.WEBHOOK_SECRET || secret !== process.env.WEBHOOK_SECRET) {
     return res.status(403).json({ error: 'Acesso negado' });
   }
 
@@ -145,7 +145,7 @@ app.post('/api/webhook/pedido', async (req, res) => {
 
 app.get('/api/resumo', authMiddleware, async (req, res) => {
   const { inicio, fim } = req.query;
-  const where = inicio && fim ? `WHERE created_at BETWEEN $1 AND $2` : '';
+  const where = inicio && fim ? `WHERE DATE(created_at) BETWEEN $1::date AND $2::date` : '';
   const params = inicio && fim ? [inicio, fim] : [];
 
   const [totais, porDia, porProduto, porTipo] = await Promise.all([
@@ -160,7 +160,7 @@ app.get('/api/resumo', authMiddleware, async (req, res) => {
         COALESCE(SUM(total_impulsionamento),0) AS total_impulsionamento,
         COALESCE(SUM(liquido_estimado),0) AS total_liquido,
         COALESCE(SUM(lucro),0) AS total_lucro,
-        COALESCE(AVG(REPLACE(REPLACE(margem_pct_bruto,'%',''),',','.')::NUMERIC),0) AS margem_media
+        COALESCE(AVG(NULLIF(REPLACE(REPLACE(margem_pct_bruto,'%',''),',','.'), '')::NUMERIC),0) AS margem_media
       FROM pedidos ${where}
     `, params),
 
@@ -209,7 +209,7 @@ app.get('/api/pedidos', authMiddleware, async (req, res) => {
   const conditions = [];
   const params = [];
 
-  if (inicio && fim) { params.push(inicio, fim); conditions.push(`created_at BETWEEN $${params.length-1} AND $${params.length}`); }
+  if (inicio && fim) { params.push(inicio, fim); conditions.push(`DATE(created_at) BETWEEN $${params.length-1}::date AND $${params.length}::date`); }
   if (sku) { params.push(`%${sku}%`); conditions.push(`item_sku ILIKE $${params.length}`); }
   if (tipo) { params.push(tipo); conditions.push(`listing_type = $${params.length}`); }
 
