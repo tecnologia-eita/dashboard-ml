@@ -7,15 +7,15 @@ style.textContent = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body, #root { height: 100%; }
   body {
-    background: #fdf7f2;
+    background: #ecddd0;
     font-family: 'Kumbh Sans', sans-serif;
     -webkit-font-smoothing: antialiased;
   }
 
   ::-webkit-scrollbar { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { background: #fdf7f2; }
-  ::-webkit-scrollbar-thumb { background: #e8d5c8; border-radius: 10px; }
-  ::-webkit-scrollbar-thumb:hover { background: #d0b8ac; }
+  ::-webkit-scrollbar-track { background: #ecddd0; }
+  ::-webkit-scrollbar-thumb { background: #c8a898; border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: #b4907e; }
 
   @keyframes spin {
     from { transform: rotate(0deg); }

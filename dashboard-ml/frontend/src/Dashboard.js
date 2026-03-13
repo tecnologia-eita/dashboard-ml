@@ -7,14 +7,14 @@ import { api } from './App';
 
 /* ─── Paleta de cores — Eita Casa Perfeita ─────────────────── */
 const C = {
-  bg:        '#fdf7f2',
-  surface:   '#fff9f5',
-  card:      '#ffffff',
-  border:    '#eeddd2',
-  borderHi:  '#ddc9bc',
+  bg:        '#ecddd0',
+  surface:   '#e4d0c2',
+  card:      '#fdf8f4',
+  border:    '#cdb09e',
+  borderHi:  '#b89585',
   text:      '#2c1810',
   textMuted: '#9e7a68',
-  textDim:   '#c8b0a5',
+  textDim:   '#b89888',
   orange:    '#fe9b3b',
   orangeHi:  '#ed762f',
   gold:      '#f5c018',
@@ -157,6 +157,10 @@ export default function Dashboard({ onLogout }) {
   const [sortCol, setSortCol]             = useState('created_at');
   const [sortDir, setSortDir]             = useState('desc');
   const [refreshing, setRefreshing]       = useState(false);
+  const [metaMes, setMetaMes]             = useState(() => new Date().toISOString().slice(0, 7));
+  const [metaData, setMetaData]           = useState(null);
+
+  const META_GOAL = 400000;
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -180,6 +184,15 @@ export default function Dashboard({ onLogout }) {
     setPagina(p);
   }, [inicio, fim, skuFiltro, orderIdFiltro, marketplace, sortCol, sortDir]);
 
+  const loadMeta = useCallback(async (mes) => {
+    const [ano, m] = mes.split('-');
+    const lastDay = new Date(parseInt(ano), parseInt(m), 0).getDate();
+    const inicio = `${ano}-${m}-01`;
+    const fim    = `${ano}-${m}-${String(lastDay).padStart(2, '0')}`;
+    const d = await api(`/api/resumo?inicio=${inicio}&fim=${fim}`);
+    setMetaData(d);
+  }, []);
+
   const handleSort = (col) => {
     const newDir = sortCol === col && sortDir === 'desc' ? 'asc' : 'desc';
     setSortCol(col);
@@ -189,6 +202,7 @@ export default function Dashboard({ onLogout }) {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (tab === 'pedidos') loadPedidos(1); }, [tab, loadPedidos]);
+  useEffect(() => { if (tab === 'grafico') loadMeta(metaMes); }, [tab, metaMes, loadMeta]);
 
   if (loading) return (
     <div style={{ ...s.center, background: C.bg }}>
@@ -220,11 +234,6 @@ export default function Dashboard({ onLogout }) {
   const margem     = Number(t.margem_media || 0);
   const lucroTotal = Number(t.total_lucro  || 0);
 
-  const porTipo = (data?.porTipo || []).map((x, i) => ({
-    ...x,
-    fill: [C.orange, C.gold, C.blue, C.purple, C.green][i % 5],
-  }));
-
   return (
     <div style={s.root}>
       <div style={s.bgOrb1} />
@@ -234,18 +243,7 @@ export default function Dashboard({ onLogout }) {
       <aside style={s.sidebar}>
         <div style={s.sideTop}>
           <div style={s.logo}>
-            <div style={s.logoIcon}>
-              <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
-                <rect x="2"  y="2"  width="11" height="11" rx="2.5" fill={C.orange} />
-                <rect x="15" y="2"  width="11" height="11" rx="2.5" fill={C.orange} opacity="0.55" />
-                <rect x="2"  y="15" width="11" height="11" rx="2.5" fill={C.orange} opacity="0.55" />
-                <rect x="15" y="15" width="11" height="11" rx="2.5" fill={C.orange} opacity="0.25" />
-              </svg>
-            </div>
-            <div>
-              <div style={s.logoText}>Eita<span style={{ color: C.orange }}>Dashboard</span></div>
-              <div style={s.logoSub}>Central de Operações</div>
-            </div>
+            <img src="/logo-eita.png" alt="Eita Casa Perfeita" style={{ width: '100%', maxWidth: 160, objectFit: 'contain', display: 'block' }} />
           </div>
 
           <div style={s.sideNav}>
@@ -354,60 +352,58 @@ export default function Dashboard({ onLogout }) {
             </div>
 
             {/* Gráficos por Marketplace */}
-            {(data?.porMarketplace?.length > 0) && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginBottom: 20 }} className="fade-in-up">
-                {[
-                  { title: 'Faturamento por Marketplace', dataKey: 'bruto',         fmt: fmt },
-                  { title: 'Lucro por Marketplace',       dataKey: 'lucro',         fmt: fmt },
-                  { title: 'Margem Média por Marketplace',dataKey: 'margem_media',  fmt: v => fmtPct(v) },
-                  { title: 'Pedidos por Marketplace',     dataKey: 'pedidos',       fmt: fmtN },
-                ].map(({ title, dataKey, fmt: fmtFn }, chartIdx) => {
-                  const mkColors = [C.orange, C.blue, C.purple, C.green, C.gold];
-                  const mkLabels = { mercadolivre: 'Mercado Livre', shopee: 'Shopee', wbuy: 'Wbuy', amazon: 'Amazon', magalu: 'Magalu' };
-                  const chartData = (data.porMarketplace || []).map((x, i) => ({
-                    name: mkLabels[x.marketplace] || x.marketplace,
-                    value: Number(x[dataKey]) || 0,
-                    fill: mkColors[i % mkColors.length],
-                  })).filter(x => x.value > 0);
-                  return (
-                    <div key={chartIdx} className="fade-in-up" style={{ ...s.chartCard, marginBottom: 0, padding: '16px 16px 10px' }}>
-                      <div style={{ color: C.textMuted, fontSize: 10, fontWeight: 700, letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 8 }}>
-                        {title}
-                      </div>
-                      {chartData.length === 0 ? (
-                        <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.textDim, fontSize: 12 }}>Sem dados</div>
-                      ) : (
-                        <ResponsiveContainer width="100%" height={160}>
-                          <PieChart>
-                            <Pie data={chartData} dataKey="value" nameKey="name"
-                              cx="40%" cy="50%" innerRadius={38} outerRadius={62}
-                              paddingAngle={3} strokeWidth={0}>
-                              {chartData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
-                            </Pie>
-                            <Tooltip
-                              formatter={v => fmtFn(v)}
-                              contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }}
-                            />
-                            <Legend
-                              layout="vertical" align="right" verticalAlign="middle"
-                              iconType="circle" iconSize={7}
-                              formatter={(v, entry) => (
-                                <span style={{ color: C.textMuted, fontSize: 11 }}>
-                                  {v}<br />
-                                  <span style={{ color: C.text, fontWeight: 700, fontFamily: "'DM Mono', monospace", fontSize: 11 }}>
-                                    {fmtFn(entry.payload.value)}
-                                  </span>
-                                </span>
-                              )}
-                            />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginBottom: 20 }} className="fade-in-up">
+              {[
+                { title: 'Faturamento por Marketplace', dataKey: 'bruto',         fmtFn: fmt },
+                { title: 'Lucro por Marketplace',       dataKey: 'lucro',         fmtFn: fmt },
+                { title: 'Margem Média por Marketplace',dataKey: 'margem_media',  fmtFn: v => fmtPct(v) },
+                { title: 'Pedidos por Marketplace',     dataKey: 'pedidos',       fmtFn: fmtN },
+              ].map(({ title, dataKey, fmtFn }, chartIdx) => {
+                const mkColors = [C.orange, C.blue, C.purple, C.green, C.gold];
+                const mkLabels = { mercadolivre: 'Mercado Livre', shopee: 'Shopee', wbuy: 'Wbuy', amazon: 'Amazon', magalu: 'Magalu' };
+                const chartData = (data?.porMarketplace || []).map((x, i) => ({
+                  name: mkLabels[x.marketplace] || x.marketplace,
+                  value: Number(x[dataKey]) || 0,
+                  fill: mkColors[i % mkColors.length],
+                })).filter(x => x.value > 0);
+                return (
+                  <div key={chartIdx} className="fade-in-up" style={{ ...s.chartCard, marginBottom: 0, padding: '16px 16px 10px' }}>
+                    <div style={{ color: C.textMuted, fontSize: 10, fontWeight: 700, letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 8 }}>
+                      {title}
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                    {chartData.length === 0 ? (
+                      <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.textDim, fontSize: 12 }}>Sem dados</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={160}>
+                        <PieChart>
+                          <Pie data={chartData} dataKey="value" nameKey="name"
+                            cx="40%" cy="50%" innerRadius={38} outerRadius={62}
+                            paddingAngle={3} strokeWidth={0}>
+                            {chartData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                          </Pie>
+                          <Tooltip
+                            formatter={v => fmtFn(v)}
+                            contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }}
+                          />
+                          <Legend
+                            layout="vertical" align="right" verticalAlign="middle"
+                            iconType="circle" iconSize={7}
+                            formatter={(v, entry) => (
+                              <span style={{ color: C.textMuted, fontSize: 11 }}>
+                                {v}<br />
+                                <span style={{ color: C.text, fontWeight: 700, fontFamily: "'DM Mono', monospace", fontSize: 11 }}>
+                                  {fmtFn(entry.payload.value)}
+                                </span>
+                              </span>
+                            )}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
             <div style={s.tableCard} className="fade-in-up">
               <SectionHead title="Top Produtos por Lucro" count={data?.porProduto?.length} />
@@ -517,25 +513,120 @@ export default function Dashboard({ onLogout }) {
               </div>
 
               <div style={s.chartCard} className="fade-in-up">
-                <SectionHead title="Lucro por Tipo de Anúncio" />
-                {porTipo.length === 0 ? (
-                  <div style={s.emptyChart}>Sem dados</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <PieChart>
-                      <Pie
-                        data={porTipo} dataKey="lucro" nameKey="tipo"
-                        cx="50%" cy="50%" innerRadius={55} outerRadius={85}
-                        paddingAngle={3} strokeWidth={0}
-                      >
-                        {porTipo.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
-                      </Pie>
-                      <Tooltip formatter={v => fmt(v)} contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }} />
-                      <Legend iconType="circle" iconSize={8}
-                        formatter={v => <span style={{ color: C.textMuted, fontSize: 12 }}>{v}</span>} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <SectionHead title="Meta Mensal de Lucro" />
+                  <input
+                    type="month"
+                    value={metaMes}
+                    onChange={e => setMetaMes(e.target.value)}
+                    style={{ ...s.dateInput, fontSize: 12, padding: '5px 10px' }}
+                  />
+                </div>
+                {(() => {
+                  const lucroAtual  = Number(metaData?.totais?.total_lucro || 0);
+                  const pct         = Math.min(lucroAtual / META_GOAL, 1);
+                  const pctDisplay  = (lucroAtual / META_GOAL * 100).toFixed(1);
+                  const [ano, m]    = metaMes.split('-');
+                  const hoje        = new Date();
+                  const isCurMonth  = hoje.getFullYear() === parseInt(ano) && hoje.getMonth() + 1 === parseInt(m);
+                  const daysInMonth = new Date(parseInt(ano), parseInt(m), 0).getDate();
+                  const daysPassed  = isCurMonth ? hoje.getDate() : daysInMonth;
+                  const daysLeft    = isCurMonth ? daysInMonth - hoje.getDate() : 0;
+                  const dailyAvg    = daysPassed > 0 ? lucroAtual / daysPassed : 0;
+                  const projection  = isCurMonth ? dailyAvg * daysInMonth : lucroAtual;
+                  const gaugeColor  = pct >= 0.8 ? C.green : pct >= 0.5 ? C.gold : C.orange;
+
+                  // SVG gauge (270° arc)
+                  const r = 62, gx = 100, gy = 92;
+                  const polar = (deg) => {
+                    const rad = (deg - 90) * Math.PI / 180;
+                    return { x: gx + r * Math.cos(rad), y: gy + r * Math.sin(rad) };
+                  };
+                  const arcD = (start, end) => {
+                    const s = polar(start), e = polar(end);
+                    return `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${r} ${r} 0 ${end - start > 180 ? 1 : 0} 1 ${e.x.toFixed(2)} ${e.y.toFixed(2)}`;
+                  };
+                  const startA = 135, fillEnd = startA + pct * 270;
+
+                  return (
+                    <div>
+                      <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {/* Gauge SVG */}
+                        <svg width="200" height="160" viewBox="0 0 200 160" style={{ flexShrink: 0 }}>
+                          <path d={arcD(135, 405)} fill="none" stroke={C.border} strokeWidth="13" strokeLinecap="round" />
+                          {pct > 0 && (
+                            <path d={arcD(startA, fillEnd)} fill="none" stroke={gaugeColor} strokeWidth="13" strokeLinecap="round" />
+                          )}
+                          {lucroAtual >= META_GOAL && (
+                            <circle cx={gx} cy={gy} r={r + 8} fill="none" stroke={`${C.green}22`} strokeWidth="6" />
+                          )}
+                          <text x="100" y="86" textAnchor="middle" style={{ fontFamily: "'DM Mono', monospace", fontSize: 20, fontWeight: 700, fill: C.text }}>{pctDisplay}%</text>
+                          <text x="100" y="104" textAnchor="middle" style={{ fontFamily: "'Kumbh Sans', sans-serif", fontSize: 10, fill: C.textMuted }}>da meta</text>
+                          {/* Min/Max labels */}
+                          <text x="28" y="148" textAnchor="middle" style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, fill: C.textDim }}>R$0</text>
+                          <text x="172" y="148" textAnchor="middle" style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, fill: C.textDim }}>400k</text>
+                        </svg>
+
+                        {/* Stats */}
+                        <div style={{ flex: 1, minWidth: 150, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div>
+                            <div style={{ color: C.textMuted, fontSize: 10, fontWeight: 700, letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 3 }}>
+                              {lucroAtual >= META_GOAL ? '🎉 Meta Atingida!' : 'Lucro no Mês'}
+                            </div>
+                            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 700, color: gaugeColor }}>{fmt(lucroAtual)}</div>
+                          </div>
+                          <div style={{ height: 1, background: C.border }} />
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            {[
+                              { label: 'Meta',      value: fmt(META_GOAL),                                    color: C.text },
+                              { label: 'Faltam',    value: fmt(Math.max(META_GOAL - lucroAtual, 0)),          color: lucroAtual >= META_GOAL ? C.green : C.red },
+                              { label: 'Média/dia', value: fmt(dailyAvg),                                     color: C.text },
+                              isCurMonth
+                                ? { label: 'Projeção', value: fmt(projection), color: projection >= META_GOAL ? C.green : C.gold }
+                                : null,
+                            ].filter(Boolean).map(({ label, value, color }) => (
+                              <div key={label}>
+                                <div style={{ color: C.textMuted, fontSize: 9, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
+                                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color }}>{value}</div>
+                              </div>
+                            ))}
+                          </div>
+                          {isCurMonth && (
+                            <div style={{ fontSize: 10, color: C.textDim, fontWeight: 600 }}>
+                              {daysPassed} dias passados · {daysLeft} dias restantes
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Daily bars */}
+                      {(metaData?.porDia?.length > 0) && (
+                        <div style={{ marginTop: 16 }}>
+                          <div style={{ color: C.textMuted, fontSize: 10, fontWeight: 700, letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 8 }}>Lucro por dia</div>
+                          <ResponsiveContainer width="100%" height={110}>
+                            <BarChart
+                              data={metaData.porDia.map(d => ({
+                                dia: new Date(d.dia + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                                Lucro: Number(d.lucro),
+                              }))}
+                              margin={{ top: 2, right: 4, left: 0, bottom: 0 }}
+                            >
+                              <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
+                              <XAxis dataKey="dia" tick={{ fill: C.textMuted, fontSize: 9, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} />
+                              <YAxis tickFormatter={v => `${(v/1000).toFixed(0)}k`} tick={{ fill: C.textMuted, fontSize: 9, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} width={36} />
+                              <Tooltip content={<CustomTooltip />} />
+                              <Bar dataKey="Lucro" name="Lucro" radius={[4, 4, 0, 0]}>
+                                {metaData.porDia.map((_, i) => (
+                                  <Cell key={i} fill={Number(metaData.porDia[i]?.lucro) >= 0 ? C.green : C.red} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -721,19 +812,9 @@ const s = {
   sideTop: { flex: 1, padding: '24px 16px 16px' },
   sideBottom: { padding: '16px', borderTop: `1px solid ${C.border}` },
   logo: {
-    display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32,
-    paddingBottom: 22, borderBottom: `1px solid ${C.border}`,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    marginBottom: 28, paddingBottom: 20, borderBottom: `1px solid ${C.border}`,
   },
-  logoIcon: {
-    width: 42, height: 42, borderRadius: 12,
-    background: '#fff5ec', border: `1px solid ${C.border}`,
-    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  logoText: {
-    fontFamily: "'Kumbh Sans', sans-serif", fontWeight: 800, fontSize: 16,
-    color: C.text, letterSpacing: -0.2,
-  },
-  logoSub: { color: C.textDim, fontSize: 10, marginTop: 2, fontWeight: 600 },
 
   sideNav: { display: 'flex', flexDirection: 'column', gap: 4 },
   navItem: {

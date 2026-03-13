@@ -36,18 +36,7 @@ export default function Login({ onLogin }) {
         <div style={s.cardAccent} />
 
         <div style={s.logoWrap}>
-          <div style={s.logoIcon}>
-            <svg width="30" height="30" viewBox="0 0 28 28" fill="none">
-              <rect x="2"  y="2"  width="11" height="11" rx="3" fill="#fe9b3b" />
-              <rect x="15" y="2"  width="11" height="11" rx="3" fill="#fe9b3b" opacity="0.6" />
-              <rect x="2"  y="15" width="11" height="11" rx="3" fill="#fe9b3b" opacity="0.6" />
-              <rect x="15" y="15" width="11" height="11" rx="3" fill="#fe9b3b" opacity="0.3" />
-            </svg>
-          </div>
-          <div>
-            <div style={s.logoText}>Eita<span style={s.logoAccent}>Dashboard</span></div>
-            <div style={s.logoSub}>Central de Operações · Todos os Canais</div>
-          </div>
+          <img src="/logo-eita.png" alt="Eita Casa Perfeita" style={{ width: 180, objectFit: 'contain', display: 'block', margin: '0 auto' }} />
         </div>
 
         <div style={s.divider} />
@@ -107,7 +96,7 @@ export default function Login({ onLogin }) {
 const s = {
   bg: {
     minHeight: '100vh',
-    background: 'linear-gradient(160deg, #fdf7f2 0%, #fdeedd 100%)',
+    background: 'linear-gradient(160deg, #ecddd0 0%, #e2cab5 100%)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -129,7 +118,7 @@ const s = {
   },
   card: {
     background: '#ffffff',
-    border: '1px solid #eeddd2',
+    border: '1px solid #cdb09e',
     borderRadius: 20,
     padding: '44px 40px 36px',
     width: 420,
