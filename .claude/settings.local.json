@@ -4,7 +4,8 @@
       "Bash(bash \"C:/Users/Eita Casa Perfeita/.claude/skills/git-pushing/scripts/smart_commit.sh\" \"fix: corrigir bugs e completar arquivos faltando\")",
       "WebFetch(domain:www.eitacasaperfeita.com.br)",
       "Bash(bash \"C:/Users/Eita Casa Perfeita/.claude/skills/git-pushing/scripts/smart_commit.sh\" \"style: redesenhar UI com identidade visual da marca Eita Casa Perfeita\")",
-      "Bash(bash \"C:/Users/Eita Casa Perfeita/.claude/skills/git-pushing/scripts/smart_commit.sh\" \"feat: busca por ID, filtro marketplace e ordenação por coluna nos pedidos\")"
+      "Bash(bash \"C:/Users/Eita Casa Perfeita/.claude/skills/git-pushing/scripts/smart_commit.sh\" \"feat: busca por ID, filtro marketplace e ordenação por coluna nos pedidos\")",
+      "Bash(bash \"C:/Users/Eita Casa Perfeita/.claude/skills/git-pushing/scripts/smart_commit.sh\" \"feat: adicionar 4 graficos de pizza por marketplace na visao geral\")"
     ]
   }
 }

@@ -353,6 +353,62 @@ export default function Dashboard({ onLogout }) {
               ))}
             </div>
 
+            {/* Gráficos por Marketplace */}
+            {(data?.porMarketplace?.length > 0) && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginBottom: 20 }} className="fade-in-up">
+                {[
+                  { title: 'Faturamento por Marketplace', dataKey: 'bruto',         fmt: fmt },
+                  { title: 'Lucro por Marketplace',       dataKey: 'lucro',         fmt: fmt },
+                  { title: 'Margem Média por Marketplace',dataKey: 'margem_media',  fmt: v => fmtPct(v) },
+                  { title: 'Pedidos por Marketplace',     dataKey: 'pedidos',       fmt: fmtN },
+                ].map(({ title, dataKey, fmt: fmtFn }, chartIdx) => {
+                  const mkColors = [C.orange, C.blue, C.purple, C.green, C.gold];
+                  const mkLabels = { mercadolivre: 'Mercado Livre', shopee: 'Shopee', wbuy: 'Wbuy', amazon: 'Amazon', magalu: 'Magalu' };
+                  const chartData = (data.porMarketplace || []).map((x, i) => ({
+                    name: mkLabels[x.marketplace] || x.marketplace,
+                    value: Number(x[dataKey]) || 0,
+                    fill: mkColors[i % mkColors.length],
+                  })).filter(x => x.value > 0);
+                  return (
+                    <div key={chartIdx} className="fade-in-up" style={{ ...s.chartCard, marginBottom: 0, padding: '16px 16px 10px' }}>
+                      <div style={{ color: C.textMuted, fontSize: 10, fontWeight: 700, letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 8 }}>
+                        {title}
+                      </div>
+                      {chartData.length === 0 ? (
+                        <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.textDim, fontSize: 12 }}>Sem dados</div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height={160}>
+                          <PieChart>
+                            <Pie data={chartData} dataKey="value" nameKey="name"
+                              cx="40%" cy="50%" innerRadius={38} outerRadius={62}
+                              paddingAngle={3} strokeWidth={0}>
+                              {chartData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                            </Pie>
+                            <Tooltip
+                              formatter={v => fmtFn(v)}
+                              contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }}
+                            />
+                            <Legend
+                              layout="vertical" align="right" verticalAlign="middle"
+                              iconType="circle" iconSize={7}
+                              formatter={(v, entry) => (
+                                <span style={{ color: C.textMuted, fontSize: 11 }}>
+                                  {v}<br />
+                                  <span style={{ color: C.text, fontWeight: 700, fontFamily: "'DM Mono', monospace", fontSize: 11 }}>
+                                    {fmtFn(entry.payload.value)}
+                                  </span>
+                                </span>
+                              )}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <div style={s.tableCard} className="fade-in-up">
               <SectionHead title="Top Produtos por Lucro" count={data?.porProduto?.length} />
               <div style={{ overflowX: 'auto' }}>

@@ -159,7 +159,7 @@ app.get('/api/resumo', authMiddleware, async (req, res) => {
   const where = inicio && fim ? `WHERE DATE(created_at) BETWEEN $1::date AND $2::date` : '';
   const params = inicio && fim ? [inicio, fim] : [];
 
-  const [totais, porDia, porProduto, porTipo] = await Promise.all([
+  const [totais, porDia, porProduto, porTipo, porMarketplace] = await Promise.all([
     pool.query(`
       SELECT
         COUNT(*) AS total_pedidos,
@@ -204,6 +204,18 @@ app.get('/api/resumo', authMiddleware, async (req, res) => {
         COALESCE(SUM(lucro),0) AS lucro
       FROM pedidos ${where}
       GROUP BY listing_type
+    `, params),
+
+    pool.query(`
+      SELECT
+        COALESCE(marketplace, 'mercadolivre') AS marketplace,
+        COUNT(*) AS pedidos,
+        COALESCE(SUM(valor_bruto),0) AS bruto,
+        COALESCE(SUM(lucro),0) AS lucro,
+        COALESCE(AVG(NULLIF(REPLACE(REPLACE(margem_pct_bruto,'%',''),',','.'), '')::NUMERIC),0) AS margem_media
+      FROM pedidos ${where}
+      GROUP BY COALESCE(marketplace, 'mercadolivre')
+      ORDER BY bruto DESC
     `, params)
   ]);
 
@@ -212,6 +224,7 @@ app.get('/api/resumo', authMiddleware, async (req, res) => {
     porDia: porDia.rows.reverse(),
     porProduto: porProduto.rows,
     porTipo: porTipo.rows,
+    porMarketplace: porMarketplace.rows,
   });
 });
 
