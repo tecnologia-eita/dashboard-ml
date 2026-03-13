@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import Login from './Login';
 import Dashboard from './Dashboard';
 
 const API = process.env.REACT_APP_API_URL || '';
 
 export function api(path, options = {}) {
-  const token = localStorage.getItem('ml_token');
+  const token = localStorage.getItem('eita_token');
   return fetch(API + path, {
     ...options,
     headers: {
@@ -15,7 +15,7 @@ export function api(path, options = {}) {
     },
   }).then(r => {
     if (r.status === 401) {
-      localStorage.removeItem('ml_token');
+      localStorage.removeItem('eita_token');
       window.location.reload();
     }
     return r.json();
@@ -23,15 +23,15 @@ export function api(path, options = {}) {
 }
 
 export default function App() {
-  const [token, setToken] = useState(localStorage.getItem('ml_token'));
+  const [token, setToken] = useState(localStorage.getItem('eita_token'));
 
   const handleLogin = useCallback((t) => {
-    localStorage.setItem('ml_token', t);
+    localStorage.setItem('eita_token', t);
     setToken(t);
   }, []);
 
   const handleLogout = useCallback(() => {
-    localStorage.removeItem('ml_token');
+    localStorage.removeItem('eita_token');
     setToken(null);
   }, []);
 
